@@ -88,3 +88,77 @@ a relational schema with a foreign key and `@unique` makes the database itself r
 break them. The trade-off is that reading a book *with* its genre needs an explicit
 `include: { genre: true }` rather than reading one blob — but every write path gets simpler,
 and correctness is enforced at the storage layer instead of in your head.
+
+
+## Week 2 — API Endpoints
+
+Base URL: `http://localhost:3000`
+
+### Auth (public)
+
+| Method | Endpoint | Body | Notes |
+|---|---|---|---|
+| POST | `/auth/register` | `{ email, name, password, role? }` | Password bcrypt-hashed before storage. `role` is `PATRON` or `LIBRARIAN`, defaults to `PATRON`. |
+| POST | `/auth/login` | `{ email, password }` | Returns `{ access_token, user }`. JWT valid for 1 day. |
+
+### Books
+
+| Method | Endpoint | Auth | Notes |
+|---|---|---|---|
+| GET | `/books` | Public | Query params: `genreId`, `search`, `page`, `limit`. Returns `{ data, meta }`. |
+| GET | `/books/:id` | Public | 404 if not found. |
+| POST | `/books` | **LIBRARIAN** | Validated by `CreateBookDto`. |
+| PATCH | `/books/:id` | **LIBRARIAN** | Partial update via `UpdateBookDto`. |
+| DELETE | `/books/:id` | **LIBRARIAN** | |
+
+### Genres
+
+| Method | Endpoint | Auth | Notes |
+|---|---|---|---|
+| GET | `/genres` | Public | |
+| GET | `/genres/:id` | Public | |
+| POST | `/genres` | **LIBRARIAN** | |
+| PATCH | `/genres/:id` | **LIBRARIAN** | |
+| DELETE | `/genres/:id` | **LIBRARIAN** | 409 if the genre still has books. |
+
+### Users
+
+| Method | Endpoint | Auth | Notes |
+|---|---|---|---|
+| GET | `/users/profile` | **JWT** | Returns the logged-in user read from the request via `@Req()`. |
+
+### Filtering and pagination
+
+`GET /books?genreId=2&search=the&page=2&limit=5` — `genreId` exact match, `search` case-insensitive on title **or** author, `page` 1-based (default 1), `limit` default 10. Response: `{ "data": [...], "meta": { "total", "page", "limit", "totalPages", "hasNextPage", "hasPreviousPage" } }`.
+
+## Authentication & Authorization
+
+- Passwords hashed with **bcrypt** (10 rounds); the hash is never returned by any endpoint.
+- `POST /auth/login` signs a JWT containing `{ sub, email, role }` using `JWT_SECRET`.
+- `JwtAuthGuard` (extends `AuthGuard('jwt')`) verifies the token; `JwtStrategy` extracts and validates it and re-checks the user still exists.
+- `RolesGuard` reads `@Roles('LIBRARIAN')` metadata via `Reflector` and compares it to `req.user.role`. Guards run in declared order — auth first, roles second.
+- Book and Genre **writes** require `LIBRARIAN`; reads are public. A `PATRON` token gets **403**, no token gets **401**.
+
+### Demo credentials
+
+| Role | Email | Password |
+|---|---|---|
+| LIBRARIAN | grace.mwangi@example.com | librarian123 |
+| PATRON | amina.odhiambo@example.com | patron123 |
+
+## Running it
+
+```bash
+cd api
+cp .env.example .env      # fill in DATABASE_URL and JWT_SECRET
+npm install
+npx prisma migrate dev
+npx tsx prisma/seed.ts
+npm run start:dev
+```
+
+Import `docs/postman_collection.json` (also mirrored at `api/docs/`) into Postman for a request to every endpoint.
+
+## Stretch goals
+
+- `GET /users/profile` — implemented, reads the authenticated user off the request with `@Req()`.
