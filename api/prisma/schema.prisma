@@ -16,6 +16,7 @@ model User {
   id        Int      @id @default(autoincrement())
   email     String   @unique
   name      String
+  password  String
   role      Role     @default(PATRON)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -28,6 +29,7 @@ model Genre {
   name      String   @unique
   slug      String   @unique
   createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   books     Book[]
 }
@@ -37,6 +39,7 @@ model Book {
   title           String
   author          String
   isbn            String   @unique
+  coverImage      String?
   publishedYear   Int?
   totalCopies     Int      @default(1)
   availableCopies Int      @default(1)
@@ -49,6 +52,8 @@ model Book {
   reviews         Review[]
 
   @@index([genreId])
+  @@index([title])
+  @@index([author])
 }
 
 model Review {
